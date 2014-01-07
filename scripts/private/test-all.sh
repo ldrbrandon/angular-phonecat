@@ -1,7 +1,33 @@
+#!/bin/sh
+
+set -ex
+
+function cleanUp() {
+  kill $WEBSERVER_PID
+  git checkout -f $BRANCH
+}
+
+trap cleanUp EXIT
+
+# Define reasonable set of browsers in case we are running manually from commandline
+if [[ -z "$BROWSERS" ]]
+then
+  BROWSERS="Chrome"
+fi
+
+if [[ -z "$BROWSERS_E2E" ]]
+then
+  BROWSERS_E2E="Chrome"
+fi
+
 ROOT_DIR=`dirname $0`/../..
 
 cd $ROOT_DIR
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
 npm install
+
+./scripts/web-server.js > /dev/null &
+WEBSERVER_PID=$!
 
 # Steps 0 and 1 do not have any tests - but going to step 0 copies useful files
 # Step 2 only has unit tests
@@ -12,11 +38,8 @@ karma start config/karma.conf.js --single-run
 for i in {3..12}
 do
   git checkout -f step-$i
-  ./scripts/web-server.js > /dev/null &
-  WEBSERVER_PID=$!
 
-  karma start config/karma.conf.js --single-run
-  karma start config/karma-e2e.conf.js --single-run
+  karma start config/karma.conf.js --single-run --browsers $BROWSERS --reporters=dots --no-colors --no-color
+  karma start config/karma-e2e.conf.js --browsers $BROWSERS_E2E --reporters=dots --no-colors --no-color
 
-  kill $WEBSERVER_PID
 done
